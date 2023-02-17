@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+<!-- Mirrored from digitonaut.com/art/motion_of_a_molecule/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 12:41:21 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Motion Of A Molecule</title>
+
+<link rel="stylesheet" href="style.css">
+<script src="prefixfree.min.js"></script>
+</head>
+<body style='margin:0px;background:#000;color:#FFF;overflow:hidden;'>
+<script id="sf" type="x-shader/x-fragment">
+precision highp float;
+
+uniform float time;
+uniform vec2 mouse;
+uniform vec2 resolution;
+
+float ball(vec2 p, float fx, float fy, float ax, float ay) {
+    vec2 r = vec2(p.x + cos(time * fx) * ax, p.y + sin(time * fy) * ay);	
+    return 0.09 / length(r);
+}
+
+void main(void) {
+    vec2 q = gl_FragCoord.xy / resolution.xy;
+    vec2 p = -1.0 + 2.0 * q;	
+    p.x	*= resolution.x / resolution.y;
+
+    float col = 0.0;
+    col += ball(p, 1.0, 2.0, 0.1, 0.2);
+    col += ball(p, 1.5, 2.5, 0.2, 0.3);
+    col += ball(p, 2.0, 3.0, 0.3, 0.4);
+    col += ball(p, 2.5, 3.5, 0.4, 0.5);
+    col += ball(p, 3.0, 4.0, 0.5, 0.6);	
+    col += ball(p, 1.5, 0.5, 0.6, 0.7);
+	
+    gl_FragColor = vec4(col, col * 0.3, col, 1.0);
+}
+</script>
+<script id="sv" type="x-shader/x-vertex">
+  attribute vec4 vPosition;
+  void main (void) {
+  gl_Position = vPosition;
+  }
+</script>
+<canvas></canvas>
+<script  src="script.js"></script>
+</body>
+
+<!-- Mirrored from digitonaut.com/art/motion_of_a_molecule/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 12:41:23 GMT -->
+</html>

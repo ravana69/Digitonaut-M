@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from digitonaut.com/art/magmatic_lava/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 12:40:13 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<meta charset='utf-8'\>
+<meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><title>Magmatic Lava</title>
+
+<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<body>
+
+<script id="vs" type="not-js">
+void main()	{
+  gl_Position = vec4( position, 1.0 );
+}
+</script>
+<script id="fs" type="not-js">
+precision mediump float;
+
+// -------------------------------------------- code from https://glslsandbox.com/ ------------------
+//
+// just a angry asteroid comes straight from above
+//
+// you can have this shader in a windows exe as a scene Demo with music
+//
+// skype: alien 5ive
+//
+
+#ifdef GL_ES
+precision mediump float;
+#endif
+uniform float time;
+uniform vec2 resolution;
+#define iTime time
+#define iResolution resolution
+const vec4 iMouse = vec4(0.0);
+#define RAY_STEPS 80
+#define detail .01
+#define ldir normalize(vec3(-0.25,-1.,-0.2))
+
+mat2 rot;
+float maxdist=30.;
+
+float inside, zoom;
+float nebli=0.;
+
+const mat3 m = mat3( 0.00,  0.80,  0.60,
+                    -0.80,  0.36, -0.48,
+                    -0.60, -0.48,  0.64 );
+
+float hash( float n )
+{
+    return fract(sin(n)*4358.54568768763);
+}
+float noise( in vec3 x )
+{
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+
+    f = f*f*(3.0-2.0*f);
+    float n = p.x + p.y*57.0 + 113.0*p.z;
+    return mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
+                   mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y),
+               mix(mix( hash(n+113.0), hash(n+114.0),f.x),
+                   mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
+}
+
+
+float terrain( vec3 p )
+{
+	p += vec3(1.0,0.0,0.8);
+	
+    float f;
+    f  = 0.5000*noise( p ); p = m*p*2.0547;
+    f += 0.2500*noise( p ); p = m*p*2.0334;
+    f += 0.1250*noise( p ); p = m*p*2.0121;
+    f += 0.0625*noise( p ); 
+	p=m*p*.04;
+	f+=pow(noise(p),2.)*2.5;	
+	f+=noise(p*30.)*.03;
+	return f;
+}
+
+// 2D rotation function
+mat2 rot2D(float a) {
+	return mat2(cos(a),sin(a),-sin(a),cos(a));	
+}
+
+float lg=0.;
+
+// Distance function
+float de(vec3 pos) {
+	float disp=terrain(pos);
+	nebli=disp;
+	float h=max(0.,sin(pos.y*.2));
+	float md=pos.z-disp;
+	float no=noise(pos*6.-vec3(0.,0.,mod(iTime*4.,1000.)));
+	lg+=pow(max(0.,1.-(pos.z-h-no*.10+.05)),2.);
+	return md*.4;
+}
+
+vec3 normal(vec3 p) { ;
+	vec3 e = vec3(0.0,detail,0.0);
+	vec3 norm=vec3(
+			de(p+e.yxx)-de(p-e.yxx),
+			de(p+e.xyx)-de(p-e.xyx),
+			de(p+e.xxy)-de(p-e.xxy)
+			);
+	return normalize(norm);
+}
+
+float calcao(vec3 pos, vec3 nor) {
+	const float stps=5.;
+	float aodet=.25;
+	aodet/=stps;
+	float totao = 0.0;
+    float sca = 1.;
+    for( float aoi=0.; aoi<stps; aoi++ ) {
+        float hr = aodet*aoi*aoi;
+        vec3 aopos =  nor * hr + pos;
+        float dd = de( aopos );
+        totao += (hr-dd)*sca;
+		sca*=.6;
+    }
+    return clamp( 1.0 - stps*totao, 0., 1.0 );
+}
+
+vec3 raymarch(in vec3 from, in vec3 dir) 
+
+{
+	vec3 p, p2, p3, norm;
+	float d=10., g=0.;
+	float totdist=0.,totdist2=0., totdist3=0.;
+	vec3 cdir=dir;
+	float hit=0.;
+	p=from;
+	float sh=1.;
+	float det=detail;
+	float neb=20.;
+	for (int i=0; i<RAY_STEPS; i++) {
+		det*=1.+totdist*.001;
+		if (d>det && totdist<maxdist) {
+			d=de(p);
+			p+=d*dir;
+			g+=max(0.,.1+det*3.-d);
+			totdist+=d;
+		}
+	}
+	p-=(det-d)*dir;
+	float ref=0.;
+	norm=normal(p);
+
+
+	float ldot=max(0.,dot(dir,ldir));
+	float bdot=max(0.,dot(-dir,ldir));
+	float lglow=pow(ldot,8.);
+	float backg=lglow*.7+.13+max(0.,.2-p.z*.2)*3.;
+
+	backg=min(1.,backg)-smoothstep(10.,1.,bdot)*.2;
+	backg=clamp(backg,0.,1.);
+	vec3 color=vec3(backg);
+	if (d<.1) {
+		color=mix(color,1.5*vec3(1.,.6,.5),max(0.,1.3-p.z));
+		float ao=calcao(p, norm);
+		float amb=max(0.,dot(norm,-dir));		
+		float dif=max(0.,dot(norm,ldir))*sh;
+		float spec=pow(max(0.,dot(reflect(dir,norm),ldir)),20.)*dif;
+		color=(amb*ao+dif*.5)*color+spec*.5+g*(1.-exp(-.05*totdist))*noise(p*2.+iTime*.5);
+		color=max(color,max(0.,1.-length(color))*pow(max(0.,dot(norm,normalize(vec3(0.,1.,-1.5)))),.5)*vec3(1.,.4,.2));		
+		color=mix(color,vec3(.5,.4,.3),min(1.,lg*.02));
+		color+=lg*vec3(1.,.25,.1)*.1*(1.-sqrt(ao));
+		color=mix(color,vec3(backg),1.-exp(-.0005*pow(totdist,3.)));
+
+	} else {
+		vec3 planetpos=normalize(vec3(2.8,-1.,0.));
+		float planet=dot(dir,planetpos); 
+		float hidefog=clamp(dir.z+.07,0.,.05)/.05*max(0.02,1.-pow(abs(dir.x+.35),3.))*.02;
+		if (planet>.97) {
+			vec3 planetshade=vec3(1.,.9,.8)*50.;
+
+		} else {
+		    vec3 st = (dir * 2.+ vec3(1.3,2.5,1.25)) * .3;
+			for (int i = 0; i < 13; i++) st = abs(st) / dot(st,st) - .9;
+			color+= min( 1., pow( min( 5., length(st) ), 3. ) * .0025 )*1.5;
+		}
+			color+=max(0.,.003-abs(planet-.97))*hidefog*2000.;
+			color+=pow(ldot,100.);
+	}		
+	return color;
+}
+
+
+float move(float t) {
+	return sin(t*1.6258)+cos(t*.7489)*10.;	
+}
+
+void mainImage(out vec4 fragColor,in vec2 fragCoord)
+{
+	vec2 uv = gl_FragCoord.xy / iResolution.xy;
+	vec2 uvo=(uv-.5)*2.;
+	vec2 oriuv=uv;
+	uv=uv*2.-1.;
+	uv.y*=iResolution.y/iResolution.x;
+	uv.y-=.03;
+	vec2 mouse=(iMouse.xy/iResolution.xy-.15)/3.;
+	mouse.y-=2.;
+	if (iMouse.z<1.) mouse=vec2(10.,-2.);
+	vec3 dir=normalize(vec3(uv,.8));
+	mat2 camrot1=rot2D(mouse.y);
+	mat2 camrot2=rot2D(mouse.x);
+	dir.yz*=camrot1;
+	dir.xy*=camrot2;
+	float m=move(iTime*.25);
+	float m2=move(iTime*.25+.05);
+	dir.xz*=rot2D(m2-m);
+    float t = mod(iTime*2., 200.);
+	vec3 from=vec3(3.+m,-t,4.);
+	vec3 color=raymarch(from,dir);
+	float col=0.;
+	float iwidth=1./16.;
+	color=clamp(color,vec3(0.),vec3(1.));
+	color*=vec3(1.2,1.1,.95);
+	color*=1.-pow(max(abs(uvo.x),abs(uvo.y)),30.);
+    color*=smoothstep(0.,2.,t);
+    color*=1.-smoothstep(198.,200.,t);
+	fragColor = vec4(color,1.);
+}
+
+void main(void)
+{
+    mainImage(gl_FragColor, gl_FragCoord.xy);
+}
+
+// -------------------------------------------------------------------------------------------------------------------
+
+</script>
+<script src="three.min.js"></script>
+<script src="main.js"></script>
+
+</body>
+
+<!-- Mirrored from digitonaut.com/art/magmatic_lava/ by HTTrack Website Copier/3.x [XR&CO'2014], Thu, 16 Feb 2023 12:40:18 GMT -->
+</html>
